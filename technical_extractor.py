@@ -1,5 +1,11 @@
-import yfinance as yf
+from typing import Dict, Any
+
 import pandas as pd
+import yfinance as yf
+from pandas import Series, DataFrame
+from utils import (history_df_simplifier, recommendation_simplifier, opt_chain_simplifier,
+                   institutional_holders_simplifier, overview_simplifier)
+
 
 class StockInfo:
     """
@@ -11,36 +17,41 @@ class StockInfo:
     def __init__(self, ticker: str):
         """
         Initializes the StockInfo class with a stock ticker.
-
-        Args:
-        ticker (str): The stock ticker symbol.
         """
         self.ticker = ticker
         self.stock = yf.Ticker(ticker)
         self.info = self.stock.info
 
     def get_basic_info(self) -> dict:
+        basic_info = {'address': self.info.get('address1'),
+                      'city': self.info.get('city'),
+                      'state': self.info.get('state'),
+                      'zip': self.info.get('zip'),
+                      'country': self.info.get('country'),
+                      'phone': self.info.get('phone'),
+                      'website': self.info.get('website'),
+                      'industry': self.info.get('industry'),
+                      'sector': self.info.get('sector'),
+                      'longName': self.info.get('longName'),
+                      'exchange': self.info.get('exchange'),
+                      'exchangeTimezoneName': self.info.get('exchangeTimezoneName'),
+                      'averageAnalystRating': self.info.get('averageAnalystRating'),
+                      'displayName': self.info.get('displayName'),
+                      'symbol': self.info.get('symbol'),
+                      'ticker': self.ticker}
+        return basic_info
+
+    def get_basic_technical(self) -> dict:
         """
         Extracts and returns basic numerical stock information along with company name,
         sector, and industry.
-
-        Returns:
-        dict: Basic stock information.
         """
         stock_info = {key: value for key, value in self.info.items() if isinstance(value, (int, float))}
-        stock_info.update({
-            "Company Name": self.info.get("longName"),
-            "Sector": self.info.get("sector"),
-            "Industry": self.info.get("industry")
-        })
         return stock_info
 
     def get_financial_data(self) -> pd.DataFrame:
         """
         Combines financial data, balance sheet, and cash flow into one DataFrame.
-
-        Returns:
-        pd.DataFrame: Combined financial data.
         """
         stock_finance_df = self.stock.financials
         stock_balance_df = self.stock.balance_sheet
@@ -50,48 +61,31 @@ class StockInfo:
     def get_stock_history(self, period: str = "1y") -> pd.DataFrame:
         """
         Fetches the stock's historical data for a given period.
-
-        Args:
-        period (str): The time period for historical data (default is "1y").
-
-        Returns:
-        pd.DataFrame: Historical stock data.
         """
-        return self.stock.history(period=period)
+        return self.stock.history(period=period).reset_index()
 
     def get_recommendations(self) -> pd.DataFrame:
         """
         Fetches the stock recommendations.
-
-        Returns:
-        pd.DataFrame: Stock recommendations.
         """
         return self.stock.recommendations
 
-    def get_major_holders(self) -> pd.DataFrame:
+    def get_major_holders(self) -> DataFrame:
         """
         Fetches the major stock holders.
-
-        Returns:
-        pd.DataFrame: Major stock holders.
         """
+
         return self.stock.major_holders
 
-    def get_institutional_holders(self) -> pd.DataFrame:
+    def get_institutional_holders(self) -> DataFrame:
         """
-        Fetches institutional stock holders.
-
-        Returns:
-        pd.DataFrame: Institutional stock holders.
+        Fetches institutional stockholders.
         """
         return self.stock.institutional_holders
 
-    def get_option_chains(self) -> tuple:
+    def get_option_chains(self) -> DataFrame:
         """
         Fetches the stock's call and put options chains.
-
-        Returns:
-        tuple: A tuple containing two DataFrames for call options and put options.
         """
         calls_list, puts_list = [], []
         for exp_date in self.stock.options:
@@ -103,55 +97,44 @@ class StockInfo:
             calls_list.append(stock_opt_chain_call_df)
             puts_list.append(stock_opt_chain_puts_df)
 
-        return pd.concat(calls_list, ignore_index=True), pd.concat(puts_list, ignore_index=True)
+        calls_df = pd.concat(calls_list, ignore_index=True)
+        calls_df['optionType'] = "Call"
+        puts_df = pd.concat(puts_list, ignore_index=True)
+        puts_df['optionType'] = "Put"
+
+        final_puts_calls_df = pd.concat([calls_df, puts_df], ignore_index=True)
+
+        return final_puts_calls_df
 
     def get_dividends(self) -> pd.DataFrame:
         """
         Fetches the stock's dividend history.
-
-        Returns:
-        pd.DataFrame: Dividend history.
         """
-        return self.stock.dividends
+
+        return self.stock.dividends.reset_index()
 
     def get_earnings_dates(self) -> pd.DataFrame:
         """
         Fetches the stock's earnings dates.
-
-        Returns:
-        pd.DataFrame: Earnings dates.
         """
-        return self.stock.earnings_dates
+        return self.stock.earnings_dates.reset_index()
 
     def get_news(self) -> list:
         """
-        Fetches the latest news for the stock.
-
-        Returns:
-        list: Stock news.
+        Fetches the latest news for the stock. 24 hours ago
         """
-        return self.stock.news
+        news = self.stock.news
+        return news
 
-    def get_all_data(self) -> tuple:
-        """
-        Fetches all available data related to the stock.
-
-        Returns:
-        tuple: A tuple containing all data including news, earnings dates, dividends,
-               options chain, institutional holders, etc.
-        """
-        stock_info = self.get_basic_info()
+    def get_static_technical_data(self):
         stock_overview_df = self.get_financial_data()
-        stock_history_df = self.get_stock_history()
-        stock_recommendations_df = self.get_recommendations()
         stock_major_holders_df = self.get_major_holders()
         stock_institutional_holders_df = self.get_institutional_holders()
-        stock_opt_chain_calls_df, stock_opt_chain_puts_df = self.get_option_chains()
-        stock_dividends_df = self.get_dividends()
-        stock_earning_dates_df = self.get_earnings_dates()
-        stock_news = self.get_news()
 
-        return (stock_news, stock_earning_dates_df, stock_dividends_df, stock_opt_chain_puts_df,
-                stock_opt_chain_calls_df, stock_institutional_holders_df, stock_major_holders_df,
-                stock_recommendations_df, stock_history_df, stock_overview_df, stock_info)
+        stock_overview_json = overview_simplifier(stock_overview_df)
+        stock_major_holders_json = stock_major_holders_df.round(3).to_dict(orient="index")
+        stock_institutional_holders_json = institutional_holders_simplifier(stock_institutional_holders_df)
 
+        return {"overview": stock_overview_json,
+                "major_holders": stock_major_holders_json,
+                "institutional_holders": stock_institutional_holders_json}

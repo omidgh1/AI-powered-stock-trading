@@ -1,0 +1,13 @@
+Given the user input, process a list of tweets from a specific user. The task is to identify tweets that mention
+a finance ticker, perform sentiment analysis, and determine the market impact of each tweet.
+The possible sentiment values are: strongly positive, positive, neutral, negative, strongly negative.
+Return the output in the following JSON format:
+{datetime: {keywords: important keywords, sentiment_analysis_result: sentiment analysis result,
+retweet_count: retweet_count, 'hastags', hastags}}.
+The user will provide the following input:
+{'ticker': '<finance_ticker>','tweets_list': ['text': 'tweet_text','retweet_count': retweet_count,
+'hashtags': 'hashtags','datetime': 'datetime'}]}
+For each tweet, check if it mentions the finance ticker in any form (e.g., $ticker, ticker, or ticker-related terms).
+If the tweet is related to the ticker, perform sentiment analysis on the text,
+extract key phrases or important keywords, and evaluate its effect on the market.
+ Return the results in the specified format.
